@@ -2,6 +2,7 @@
 name: postagent-ship-mail-and-packages
 description: Print and physically mail a document (PDF/HTML/Markdown/text/DOCX/image) to a US postal address via the PostAgent API. Use when the user wants to send real, physical mail — a letter, notice, invoice, or postcard — to a US recipient. Each send is paid per-call in USDC on Base using the x402 protocol, so it spends real money and is irreversible once submitted.
 license: MIT
+version: 0.1.0
 metadata:
   homepage: https://postagent-api.interpretai.tech
   tags: [print-and-mail, x402, mcp, usdc, lob, postal-mail]
