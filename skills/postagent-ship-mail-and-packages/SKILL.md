@@ -119,6 +119,10 @@ The response includes:
 - `id` — the `quoteId` (e.g. `qt_...`).
 - `price.usd`, `price.usdcAtomic` — the locked price (atomic USDC = the exact charge).
 - `payment` — `{ asset, network, payTo, amountAtomic }`.
+- `paymentOptions` — ranked rails the agent can choose from (preferred first):
+  `x402` (autonomous, USDC on Base), `mpp` (autonomous card/stablecoin via a
+  Shared Payment Token, when enabled), and `stripe_checkout` (a hosted credit-
+  card page for a human payer, the last resort).
 - `paymentUrl` — `…/v1/quotes/{quoteId}/pay`, the canonical x402-payable URL.
 - `previewUrl` — `GET` it for a signed PDF preview of the final piece (address
   block + reserved zones drawn on top). Share this with the user when available.
@@ -150,6 +154,14 @@ A successful payment returns a **job** (`job_...`) with `status`,
 
 > Optionally append `?webhookUrl=https://you.example.com/hook` to the pay URL to
 > receive job status updates.
+
+**Paying by credit card (human fallback).** If no agent wallet is available and
+the payer is a human, `POST /v1/quotes/{quoteId}/checkout` (or the MCP
+`create_card_checkout` tool) returns a hosted Stripe `checkoutUrl`. Hand it to
+the user to open and pay; the letter is created automatically once payment
+completes (poll job status). When MPP is enabled, an agent holding a Shared
+Payment Token can instead `POST /v1/quotes/{quoteId}/pay/mpp` with
+`{ "sharedPaymentToken": "spt_…" }` to pay autonomously by card/stablecoin.
 
 ### 4. Track the job (free)
 
