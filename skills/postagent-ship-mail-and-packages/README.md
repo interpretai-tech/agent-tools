@@ -14,14 +14,18 @@ API. Each send is paid per-call in **USDC on Base** using the
 ## Install
 
 ```bash
-npx skills add interpretai-tech/agent-skills --skill postagent-ship-mail-and-packages
+npx skills add interpretai-tech/agent-skills --skill postagent-ship-mail-and-packages -y
 ```
 
 Or install for a specific agent (e.g. Claude Code, globally):
 
 ```bash
-npx skills add interpretai-tech/agent-skills --skill postagent-ship-mail-and-packages -g -a claude-code
+npx skills add interpretai-tech/agent-skills --skill postagent-ship-mail-and-packages -g -a claude-code -y
 ```
+
+> `-y` skips the interactive scope/confirmation prompt so the install completes
+> in one shot. Drop it if you prefer to confirm the scope and review before
+> install.
 
 ## What it does
 
