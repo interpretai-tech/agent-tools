@@ -39,8 +39,10 @@ physical US-to-US letter.
 - **US → US only.** Both sender and recipient must be US addresses. State must be
   a 2-letter code (e.g. `CA`); ZIP must be 5-digit or ZIP+4.
 - **Non-custodial payment.** PostAgent never holds a wallet. The agent's own
-  x402-capable wallet must sign and pay the quote. If no wallet is available,
-  stop and tell the user — do not attempt to fabricate payment.
+  x402-capable wallet (or a Shared Payment Token it mints) must sign and pay the
+  quote — never fabricate payment. If you have no payment method yet, don't just
+  fall back to hosted checkout: pick a rail and set one up (see
+  [Payment methods & setup](#payment-methods--setup) below).
 - **One letter = one quote + one payment + one job.** There is no batch send. To
   mail N recipients, repeat the quote→pay→job cycle N times (you can reuse the
   same `documentId`).
@@ -163,6 +165,32 @@ completes (poll job status). When MPP is enabled, an agent holding a Shared
 Payment Token can instead `POST /v1/quotes/{quoteId}/pay/mpp` with
 `{ "sharedPaymentToken": "spt_…" }` to pay autonomously by card/wallet (fiat).
 
+## Payment methods & setup
+
+Each quote returns a ranked `paymentOptions` array. Try them in order and use the
+first you can satisfy. **If you have no payment method yet, don't dead-end at
+checkout — set one up:**
+
+- **x402 — USDC on Base (autonomous, preferred).** Pay the quote's `paymentUrl`
+  in-band with any compliant x402 wallet:
+  `npx awal@latest x402 pay <paymentUrl> --max-amount <amountAtomic>`.
+  *No wallet?* Install one (`npx awal@latest`), connect it, and fund it with USDC
+  on Base mainnet (at least the quote's `price.usdcAtomic` plus gas), then pay.
+- **MPP — fiat card/wallet via a Stripe Shared Payment Token (autonomous).** Mint
+  an SPT scoped to the seller, then `POST /v1/quotes/{quoteId}/pay/mpp` with
+  `{ "sharedPaymentToken": "spt_…" }` (or MCP `pay_mail_with_shared_payment_token`).
+  The seller profile to scope to is on the quote: `paymentOptions[mpp].details.stripeProfileId`.
+  *No payment method?* Use Stripe's Link CLI (see `link.com/agents`):
+  `npx @stripe/link-cli auth login` → `payment-methods list` →
+  `spend-request create --payment-method-id <pm> --amount <cents> --credential-type shared_payment_token --network-id <stripeProfileId> --request-approval`,
+  then pass the returned `spt_…`. (US-only; 0.50 USD card minimum.)
+- **Hosted Checkout — human with a card (last resort).** `POST /v1/quotes/{quoteId}/checkout`
+  (or MCP `create_card_checkout`) returns a `checkoutUrl` for a human to pay in a
+  browser; the letter is created once payment completes (poll job status).
+
+> MCP clients can read the `postagent://payment-methods` resource for this same
+> guidance, with per-rail examples and setup steps, in structured form.
+
 ### 4. Track the job (free)
 
 ```bash
@@ -237,7 +265,8 @@ The tools map 1:1 to the workflow steps:
 `userConfirmed: true`. Set `userConfirmed: true` only after the human explicitly
 approved the recipient, sender, content, and price. Read-only resources are also
 exposed: `postagent://terms`, `postagent://privacy`, `postagent://formats`,
-`postagent://pricing`.
+`postagent://pricing`, and `postagent://payment-methods` (every supported rail
+with examples + step-by-step setup for a payer that has no wallet/token yet).
 
 ## Reference
 
