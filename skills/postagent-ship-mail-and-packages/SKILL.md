@@ -120,7 +120,7 @@ The response includes:
 - `price.usd`, `price.usdcAtomic` — the locked price (atomic USDC = the exact charge).
 - `payment` — `{ asset, network, payTo, amountAtomic }`.
 - `paymentOptions` — ranked rails the agent can choose from (preferred first):
-  `x402` (autonomous, USDC on Base), `mpp` (autonomous card/stablecoin via a
+  `x402` (autonomous, USDC on Base), `mpp` (autonomous fiat card/wallet via a
   Shared Payment Token, when enabled), and `stripe_checkout` (a hosted credit-
   card page for a human payer, the last resort).
 - `paymentUrl` — `…/v1/quotes/{quoteId}/pay`, the canonical x402-payable URL.
@@ -161,7 +161,7 @@ the payer is a human, `POST /v1/quotes/{quoteId}/checkout` (or the MCP
 the user to open and pay; the letter is created automatically once payment
 completes (poll job status). When MPP is enabled, an agent holding a Shared
 Payment Token can instead `POST /v1/quotes/{quoteId}/pay/mpp` with
-`{ "sharedPaymentToken": "spt_…" }` to pay autonomously by card/stablecoin.
+`{ "sharedPaymentToken": "spt_…" }` to pay autonomously by card/wallet (fiat).
 
 ### 4. Track the job (free)
 
@@ -228,6 +228,8 @@ The tools map 1:1 to the workflow steps:
 | `create_mail_quote` | Verify addresses + lock a 15-minute USDC price. | No |
 | `prepare_mail_payment` | Fetch the x402 `PAYMENT-REQUIRED` challenge for a quote. | No |
 | `submit_paid_mail_job` | Settle a **detached** x402 signature and create the letter. **Irreversible.** | **Yes** |
+| `pay_mail_with_shared_payment_token` | Pay a quote autonomously by card/wallet (fiat) with a Stripe Shared Payment Token (MPP); creates the letter. **Irreversible.** | **Yes** |
+| `create_card_checkout` | Create a hosted Stripe card-checkout link for a human payer (last resort). | No (human pays later) |
 | `get_mail_job_status` | Look up status / tracking for a job. | No |
 
 `submit_paid_mail_job` is the detached-signature alternative to paying the
