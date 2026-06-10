@@ -229,6 +229,11 @@ a surcharge.
   and re-quote.
 - Expired quote → re-run step 2; quotes live 15 minutes.
 - Quotes/jobs are immutable once created; never retry a settled payment.
+- If calls fail in a confusing way (connection errors, unexpected `5xx`),
+  sanity-check connectivity and your base URL with
+  `curl https://postagent-api.interpretai.tech/health` — a healthy service
+  returns `{"status":"ok","service":"PostAgent"}`. This is optional and only for
+  troubleshooting; do not gate the workflow on it.
 
 ## Optional: MCP server
 
