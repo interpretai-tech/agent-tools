@@ -292,8 +292,12 @@ Pay the returned `paymentUrl` exactly like a letter (step 3 above). Sizes:
 `4x6` (default), `6x9`, `6x11`. **International:** only `4x6`, only
 `usps_first_class` — give `to.country` the 2-letter ISO code and use the
 looser address shape (free-form `state`, postal code in `zip`). The quote's
-`previewUrl` returns signed URLs of the raw front/back artwork; Lob's rendered
-proof appears on the job's `tracking` after payment.
+`previewUrl` serves a **two-page composite PDF** (front, then back with Lob's
+printed address block drawn in place so you can see exactly what it covers):
+opening it in a browser redirects straight to the PDF, while JSON clients get
+`{ url, front, back }` — the composite plus the raw artwork URLs. Share `url`
+with the user before paying. Lob's rendered proof appears on the job's
+`tracking` after payment.
 
 ## Address verification (paid, ~2¢)
 
