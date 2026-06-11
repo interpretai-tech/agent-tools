@@ -1,8 +1,8 @@
 ---
 name: postagent-ship-mail-and-packages
-description: Print and physically mail a document (PDF/HTML/Markdown/text/DOCX/image) to a US postal address via the PostAgent API. Use when the user wants to send real, physical mail — a letter, notice, invoice, or postcard — to a US recipient. Each send is paid per-call in USDC on Base using the x402 protocol, so it spends real money and is irreversible once submitted.
+description: Print and physically mail documents and postcards to US postal addresses via the PostAgent API, send certified/registered mail with proof of delivery, verify postal addresses for deliverability, and (KYC-verified senders only) run bulk mail campaigns. Use when the user wants to send real, physical mail — a letter, notice, invoice, or postcard — to a US recipient, or to check whether a postal address is deliverable. Each send is paid per-call in USDC on Base using the x402 protocol, so it spends real money and is irreversible once submitted.
 license: MIT
-version: 0.1.0
+version: 0.2.0
 metadata:
   homepage: https://postagent-api.interpretai.tech
   tags: [print-and-mail, x402, mcp, usdc, lob, postal-mail]
@@ -10,11 +10,23 @@ metadata:
 
 # PostAgent — Print & Mail
 
-PostAgent turns a digital document into a **physical letter** that is printed and
-mailed to a US address. You upload a document, lock a price quote, and pay per
-send with the [x402](https://www.x402.org/) payment protocol (USDC on Base
-mainnet). PostAgent then hands the job to [Lob](https://www.lob.com/) for
-printing and USPS delivery.
+PostAgent turns a digital document into **physical mail** that is printed and
+delivered via USPS. You upload a document, lock a price quote, and pay per send
+with the [x402](https://www.x402.org/) payment protocol (USDC on Base mainnet).
+PostAgent then hands the job to [Lob](https://www.lob.com/) for printing and
+USPS delivery.
+
+Products:
+
+- **Letters** — PDF/HTML/Markdown/text/DOCX/image, optional color, certified /
+  certified-with-return-receipt / registered mail.
+- **Postcards** — 4x6 / 6x9 / 6x11, full color, from front+back artwork
+  (4x6 cards can ship internationally).
+- **Address verification** — standalone paid deliverability check (US CASS or
+  international), ~2¢ per call.
+- **Bulk campaigns** — one creative, up to 500 recipients, via the provider's
+  campaign pipeline. **KYC-walled: unavailable until identity verification
+  launches** (see [Bulk campaigns](#bulk-campaigns-kyc-required)).
 
 - **Service base URL:** `https://postagent-api.interpretai.tech`
 - **MCP endpoint:** `https://postagent-api.interpretai.tech/mcp`
@@ -25,19 +37,22 @@ Use it when the user wants to **send real physical mail in the US**, e.g.:
 
 - "Mail this PDF letter to 500 Market St, San Francisco."
 - "Send a printed notice to these 10 customers."
-- "Post this invoice to my client."
+- "Post this invoice to my client." / "Send it certified with return receipt."
+- "Mail a postcard to…" / "Is this address deliverable?"
 
-Do **not** use it for email, faxes, international mail, or anything that is not a
-physical US-to-US letter.
+Do **not** use it for email, faxes, or packages/parcels. International delivery
+is supported **only** for 4x6 postcards; all letters are US-to-US.
 
 ## CRITICAL — read before sending
 
 - **Real money + irreversible.** Submitting a paid job charges USDC and prints &
-  mails a physical letter. It cannot be undone. **Always** show the user the
+  mails a physical piece. It cannot be undone. **Always** show the user the
   recipient, sender, page count, and price, and get **explicit confirmation**
   before paying.
-- **US → US only.** Both sender and recipient must be US addresses. State must be
-  a 2-letter code (e.g. `CA`); ZIP must be 5-digit or ZIP+4.
+- **US senders + US recipients** for letters. State must be a 2-letter code
+  (e.g. `CA`); ZIP must be 5-digit or ZIP+4. Exception: a **4x6 postcard** may
+  go to an international recipient (set `to.country` to the 2-letter ISO code);
+  the sender must still be a US address.
 - **Non-custodial payment.** PostAgent never holds a wallet. The agent's own
   x402-capable wallet (or a Shared Payment Token it mints) must sign and pay the
   quote — never fabricate payment. If you have no payment method yet, don't just
@@ -143,9 +158,16 @@ curl -sX POST https://postagent-api.interpretai.tech/v1/quotes \
     "documentId": "doc_XXX",
     "from": { "name": "Sender Name", "line1": "123 Main St", "city": "San Francisco", "state": "CA", "zip": "94105" },
     "to":   { "name": "Recipient Name", "line1": "500 Market St", "city": "San Francisco", "state": "CA", "zip": "94105" },
-    "options": { "color": false, "doubleSided": true, "mailClass": "usps_first_class", "certified": false }
+    "options": { "color": false, "doubleSided": true, "mailClass": "usps_first_class" }
   }'
 ```
+
+Need **proof of mailing/delivery**? Add `"extraService"` to `options`:
+`"certified"` (USPS Certified Mail), `"certified_return_receipt"` (certified +
+electronic return receipt — proof of delivery), or `"registered"` (maximum
+chain-of-custody for valuables). All three require `usps_first_class` and add a
+surcharge that appears in the quoted price. (`"certified": true` still works as
+a legacy alias for `"extraService": "certified"`.)
 
 For a **template** document, also pass `mergeVariables` with a value for every
 field in the document's `mergeFields`, e.g.
@@ -237,26 +259,119 @@ curl -s https://postagent-api.interpretai.tech/v1/jobs/job_XXX
 Returns normalized `status`, `providerLetterId`, `tracking` (incl. `proofUrl`
 and thumbnails once Lob renders them), and `failureReason` if any.
 
+## Postcards
+
+Postcards are built from **two artwork files** (front + back), each a
+single-page PDF, PNG, or JPEG stored **verbatim** — no page normalization, no
+reserved address zone. You are responsible for trim size + bleed: 4x6 needs
+4.25"x6.25" artwork, 6x9 needs 6.25"x9.25", 6x11 needs 6.25"x11.25" (0.125"
+bleed each edge). Lob prints the recipient address block over part of the
+**back**, so keep that area clear. Postcards always print in full color.
+
+```bash
+# 1. Upload front and back separately with usage: "postcard"
+curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+  -H "content-type: application/json" \
+  -d '{ "usage": "postcard", "format": "image", "url": "https://example.com/front.png" }'
+# → { "id": "doc_FRONT", "kind": "postcard_art", ... }   (repeat for the back)
+
+# 2. Quote with product: "postcard"
+curl -sX POST https://postagent-api.interpretai.tech/v1/quotes \
+  -H "content-type: application/json" \
+  -d '{
+    "product": "postcard",
+    "frontDocumentId": "doc_FRONT",
+    "backDocumentId": "doc_BACK",
+    "from": { "name": "Sender", "line1": "123 Main St", "city": "San Francisco", "state": "CA", "zip": "94105" },
+    "to":   { "name": "Recipient", "line1": "500 Market St", "city": "San Francisco", "state": "CA", "zip": "94105" },
+    "options": { "size": "4x6", "mailClass": "usps_first_class" }
+  }'
+```
+
+Pay the returned `paymentUrl` exactly like a letter (step 3 above). Sizes:
+`4x6` (default), `6x9`, `6x11`. **International:** only `4x6`, only
+`usps_first_class` — give `to.country` the 2-letter ISO code and use the
+looser address shape (free-form `state`, postal code in `zip`). The quote's
+`previewUrl` returns signed URLs of the raw front/back artwork; Lob's rendered
+proof appears on the job's `tracking` after payment.
+
+## Address verification (paid, ~2¢)
+
+Standalone deliverability check — no mail is sent. US addresses get
+CASS-standardized results (ZIP+4); other countries run international
+verification. The endpoint is a stable x402 resource: unpaid requests return
+the `402` challenge, and the same `POST` retried with a payment header returns
+the result synchronously.
+
+```bash
+npx awal@latest x402 pay https://postagent-api.interpretai.tech/v1/verify \
+  --max-amount 20000 \
+  -X POST -d '{ "address": { "line1": "500 Market St", "city": "San Francisco", "state": "CA", "zip": "94105" } }'
+# → { "deliverable": true, "deliverability": "deliverable", "normalized": { ... } }
+```
+
+International: add `"country": "GB"` (2-letter ISO) and put the postal code in
+`zip` or `postalCode`. Note: when mailing through PostAgent you do **not** need
+this — quotes already verify both addresses for free.
+
+## Bulk campaigns (KYC required)
+
+`product: "campaign"` on `POST /v1/quotes` quotes ONE bulk send to up to 500
+recipients: a single template (per-recipient `{{merge_variables}}`) or static
+PDF, fulfilled through Lob's campaign pipeline (campaign + creative + audience
+upload). Price = per-letter unit price x recipient count. Payment is **x402
+only**, and the request must name the paying wallet (`payerWallet`).
+
+> **KYC WALL — currently unusable.** Campaigns require the paying wallet to be
+> identity-verified with PostAgent. KYC onboarding is **not yet available**, so
+> every campaign quote currently returns `403 kyc_required`. **Do not retry.**
+> To send bulk mail today, run the normal letter quote→pay cycle once per
+> recipient (same `documentId`, per-recipient `mergeVariables`).
+
+Once KYC launches: after payment, the provider validates every recipient
+address asynchronously; poll `GET /v1/quotes/{quoteId}/job` (which gains a
+`campaign` object), then `GET /v1/campaigns/{campaignId}` for
+`validating → sent | partial | failed`, counts, and a row-by-row `failuresUrl`.
+Failed recipients are excluded from the send and their share of the price is
+refunded (processed manually, not automatic). Set `options.useType` honestly
+(`marketing` is the default for bulk sends).
+
 ## Pricing
 
 Deterministic and transparent:
 
 ```
-total = ceil((base + per_page*pages + color? + mail_class? + certified?) * margin)
+letter   total = ceil((base + per_page*pages + color? + mail_class? + extra_service?) * margin)
+postcard total = ceil((size_base + mail_class?) * margin)        # always full color
+campaign total = letter_unit_price * recipient_count
+verify   total = flat fee (~2¢)
 ```
 
 The quote returns the total in USD and as atomic USDC (6 decimals); the atomic
-amount is the exact x402 charge. Color, certified mail, and first-class each add
-a surcharge.
+amount is the exact x402 charge. Color, first-class, and each extra service
+(certified, certified + return receipt, registered) add a surcharge.
 
 ## Options reference
+
+Letters (`options` on a default/letter quote):
 
 | Option | Values | Default |
 | ------ | ------ | ------- |
 | `color` | `true` / `false` | `false` |
 | `doubleSided` | `true` / `false` | `true` |
 | `mailClass` | `usps_first_class` / `usps_standard` | `usps_first_class` |
-| `certified` | `true` / `false` | `false` |
+| `extraService` | `certified` / `certified_return_receipt` / `registered` | none |
+| `certified` | `true` / `false` (legacy alias for `extraService: certified`) | `false` |
+
+Postcards (`options` with `product: "postcard"`):
+
+| Option | Values | Default |
+| ------ | ------ | ------- |
+| `size` | `4x6` / `6x9` / `6x11` | `4x6` |
+| `mailClass` | `usps_first_class` / `usps_standard` | `usps_first_class` |
+
+Campaigns add `useType` (`marketing` / `operational`, default `marketing`) on
+top of the letter options (no `certified` alias; use `extraService`).
 
 ## Error handling
 
@@ -295,12 +410,17 @@ The tools map 1:1 to the workflow steps:
 | ---- | ------------- | -------- |
 | `create_letter` | Upload a finished document (identical for all recipients). `{{...}}` is printed literally. | No |
 | `create_template` | Upload an html/markdown/text template with `{{fields}}` for mail merge. | No |
-| `create_mail_quote` | Verify addresses + lock a 15-minute USDC price. | No |
+| `create_postcard_art` | Upload one side of a postcard (single-page pdf/png/jpeg, stored verbatim). | No |
+| `create_mail_quote` | Verify addresses + lock a 15-minute USDC price for a letter. | No |
+| `create_postcard_quote` | Lock a price for a postcard (front + back artwork, size, recipient). | No |
+| `create_campaign_quote` | Lock a price for a bulk campaign (1-500 recipients). **Currently returns `kyc_required` — KYC onboarding not yet available.** | No |
+| `verify_address` | Standalone paid deliverability check (US or international), flat ~2¢ x402 fee. | **Yes (~2¢)** |
 | `prepare_mail_payment` | Fetch the x402 `PAYMENT-REQUIRED` challenge for a quote. | No |
-| `submit_paid_mail_job` | Settle a **detached** x402 signature and create the letter. **Irreversible.** | **Yes** |
-| `pay_mail_with_shared_payment_token` | Pay a quote autonomously by card/wallet (fiat) with a Stripe Shared Payment Token (MPP); creates the letter. **Irreversible.** | **Yes** |
+| `submit_paid_mail_job` | Settle a **detached** x402 signature and create the letter/postcard. **Irreversible.** | **Yes** |
+| `pay_mail_with_shared_payment_token` | Pay a quote autonomously by card/wallet (fiat) with a Stripe Shared Payment Token (MPP); creates the piece. **Irreversible.** | **Yes** |
 | `create_card_checkout` | Create a hosted Stripe card-checkout link for a human payer (last resort). | No (human pays later) |
 | `get_mail_job_status` | Look up status / tracking for a job. | No |
+| `get_campaign_status` | Look up a campaign's validation/sending progress and failure report. | No |
 
 `submit_paid_mail_job` is the detached-signature alternative to paying the
 `paymentUrl` in-band; it requires both a signed x402 `paymentSignature` and
