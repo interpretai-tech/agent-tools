@@ -92,6 +92,41 @@ Provide content exactly one way: inline `content` (text formats), `contentBase64
 (binary), or `url`. The response returns a `documentId` (e.g. `doc_...`), the
 page count, and — for templates — the detected `mergeFields`.
 
+> **Images / pictures.** To mail a picture *as the letter*, upload it with
+> `format: "image"` (PNG/JPEG via `contentBase64` or `url`). To place a picture
+> *inline* in an `html`/`markdown` letter, it MUST be embedded as a base64 data
+> URI (e.g. `<img src="data:image/png;base64,iVBORw0KGgo...">` or
+> `![](data:image/png;base64,...)`). External image URLs such as
+> `<img src="https://...">` are **blocked and render blank** — the PDF renderer
+> runs with no network access for security, so only `data:` images load.
+> Already have a composed image-bearing document? Send it as `format: "pdf"`.
+
+Easiest way to mail a standalone picture — pass a `url` and the **server**
+fetches it (no base64 needed):
+
+```bash
+curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+  -H "content-type: application/json" \
+  -d '{ "format": "image", "url": "https://example.com/photo.png", "template": false }'
+```
+
+To inline a **local** image inside an html/markdown letter, encode it to a
+base64 data URI and send the request body **from a file** — a real image's
+base64 is far too large to place on the command line:
+
+```bash
+# 1. Encode the image into a data URI (one long line, no newlines).
+IMG="data:image/png;base64,$(base64 -i logo.png | tr -d '\n')"
+# 2. Write the JSON body to a file so the big blob never hits the shell args.
+cat > body.json <<JSON
+{ "format": "html", "template": false,
+  "content": "<h1>Hello</h1><img src=\"$IMG\" style=\"max-width:400px\" />" }
+JSON
+# 3. POST the file (note --data-binary @file, not -d).
+curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+  -H "content-type: application/json" --data-binary @body.json
+```
+
 > **Address zone:** PostAgent automatically reserves the top ~3 inches of page 1
 > for the recipient address block, so you do **not** need to leave the top blank.
 > This can make the stored/printed page count one greater than your source
@@ -128,6 +163,8 @@ The response includes:
 - `paymentUrl` — `…/v1/quotes/{quoteId}/pay`, the canonical x402-payable URL.
 - `previewUrl` — `GET` it for a signed PDF preview of the final piece (address
   block + reserved zones drawn on top). Share this with the user when available.
+  Programmatic clients (Accept: application/json) get JSON with the signed `url`;
+  opening it in a browser redirects straight to the PDF.
 - `expiresAt` — pay before this or re-quote.
 
 **Show the user the recipient, sender, options, page count, price, and (if
