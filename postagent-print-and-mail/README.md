@@ -13,19 +13,29 @@ API. Each send is paid per-call in **USDC on Base** using the
 
 ## Install
 
-```bash
-npx skills add interpretai-tech/agent-tools --skill postagent-print-and-mail -y
-```
-
-Or install for a specific agent (e.g. Claude Code, globally):
+**Claude Code** (global) — always pass `-a claude-code` so it lands in
+`~/.claude/skills/`, the only place Claude Code reads skills from:
 
 ```bash
 npx skills add interpretai-tech/agent-tools --skill postagent-print-and-mail -g -a claude-code -y
 ```
 
-> `-y` skips the interactive scope/confirmation prompt so the install completes
-> in one shot. Drop it if you prefer to confirm the scope and review before
-> install.
+Then **restart Claude Code** — the skill list is read once at session start, so a
+newly installed skill won't appear until you relaunch.
+
+Other agents (auto-detected — installs to each agent's own skills dir, e.g.
+`.agents/skills/` for Codex/Cursor/Gemini):
+
+```bash
+npx skills add interpretai-tech/agent-tools --skill postagent-print-and-mail -y
+```
+
+> Without `-a claude-code`, the CLI may install only to the generic
+> `.agents/skills/` path, which **Claude Code does not read** — the skill will
+> appear "installed" but never load.
+>
+> `-y` skips the interactive scope/confirmation prompt. Drop it if you prefer to
+> confirm the scope and review before install.
 
 ## What it does
 

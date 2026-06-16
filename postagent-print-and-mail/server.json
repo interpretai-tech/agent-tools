@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "tech.interpretai/PostAgent",
+  "description": "Print & mail PDF/HTML/Markdown/text/DOCX/images to US addresses; pay per call in x402 USDC on Base.",
+  "version": "0.2.0",
+  "websiteUrl": "https://postagent-api.interpretai.tech",
+  "repository": {
+    "url": "https://github.com/interpretai-tech/agent-tools",
+    "source": "github",
+    "subfolder": "postagent-print-and-mail"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://postagent-api.interpretai.tech/mcp"
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "category": "productivity",
+      "keywords": ["mail", "printing", "letters", "x402", "lob", "usdc", "base", "stripe", "cards"],
+      "payment": {
+        "protocol": "x402",
+        "network": "eip155:8453",
+        "asset": "USDC",
+        "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+        "methods": ["x402", "mpp", "stripe_checkout"]
+      }
+    }
+  }
+}
