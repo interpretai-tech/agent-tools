@@ -194,6 +194,15 @@ available) the preview, then wait for explicit confirmation.**
 
 ### 3. Pay the quote → create the letter (charges money, irreversible)
 
+> **Handling payment secrets.** Payment signatures, `X-PAYMENT` headers, and
+> Shared Payment Tokens are **bearer secrets**. Pass each one *only* as the
+> field or header value of the single API call that consumes it, reading it from
+> the previous step's output or a wallet/CLI at call time. Never print, echo,
+> log, store, summarize, or repeat a secret in your reply or reasoning, never
+> place one in a URL or webhook, and never ask the user to paste one in
+> plaintext. Treat the placeholders below (`<SPT>`, `<paymentSignature>`) as
+> values you forward without ever displaying.
+
 The `paymentUrl` is a standard x402 resource: an unpaid `GET`/`POST` returns
 `402 PAYMENT-REQUIRED`; the same request retried with a signed `X-PAYMENT`
 header verifies, prints, and settles.
@@ -222,7 +231,7 @@ the payer is a human, `POST /v1/quotes/{quoteId}/checkout` (or the MCP
 the user to open and pay; the letter is created automatically once payment
 completes (poll job status). When MPP is enabled, an agent holding a Shared
 Payment Token can instead `POST /v1/quotes/{quoteId}/pay/mpp` with
-`{ "sharedPaymentToken": "spt_…" }` to pay autonomously by card/wallet (fiat).
+`{ "sharedPaymentToken": "<SPT>" }` to pay autonomously by card/wallet (fiat).
 
 ## Payment methods & setup
 
@@ -237,12 +246,13 @@ checkout — set one up:**
   on Base mainnet (at least the quote's `price.usdcAtomic` plus gas), then pay.
 - **MPP — fiat card/wallet via a Stripe Shared Payment Token (autonomous).** Mint
   an SPT scoped to the seller, then `POST /v1/quotes/{quoteId}/pay/mpp` with
-  `{ "sharedPaymentToken": "spt_…" }` (or MCP `pay_mail_with_shared_payment_token`).
+  `{ "sharedPaymentToken": "<SPT>" }` (or MCP `pay_mail_with_shared_payment_token`).
   The seller profile to scope to is on the quote: `paymentOptions[mpp].details.stripeProfileId`.
   *No payment method?* Use Stripe's Link CLI (see `link.com/agents`):
   `npx @stripe/link-cli auth login` → `payment-methods list` →
   `spend-request create --payment-method-id <pm> --amount <cents> --credential-type shared_payment_token --network-id <stripeProfileId> --request-approval`,
-  then pass the returned `spt_…`. (US-only; 0.50 USD card minimum.)
+  then forward the returned token as `sharedPaymentToken` (a bearer secret —
+  pass it straight to the call, never display it). (US-only; 0.50 USD card minimum.)
 - **Hosted Checkout — human with a card (last resort).** `POST /v1/quotes/{quoteId}/checkout`
   (or MCP `create_card_checkout`) returns a `checkoutUrl` for a human to pay in a
   browser; the letter is created once payment completes (poll job status).
@@ -427,9 +437,10 @@ The tools map 1:1 to the workflow steps:
 | `get_campaign_status` | Look up a campaign's validation/sending progress and failure report. | No |
 
 `submit_paid_mail_job` is the detached-signature alternative to paying the
-`paymentUrl` in-band; it requires both a signed x402 `paymentSignature` and
-`userConfirmed: true`. Set `userConfirmed: true` only after the human explicitly
-approved the recipient, sender, content, and price. Read-only resources are also
+`paymentUrl` in-band; it requires both a signed x402 `paymentSignature`
+(`<paymentSignature>` — a bearer secret: forward it only as this call's field,
+never print or log it) and `userConfirmed: true`. Set `userConfirmed: true` only
+after the human explicitly approved the recipient, sender, content, and price. Read-only resources are also
 exposed: `postagent://terms`, `postagent://privacy`, `postagent://formats`,
 `postagent://pricing`, and `postagent://payment-methods` (every supported rail
 with examples + step-by-step setup for a payer that has no wallet/token yet).
