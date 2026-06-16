@@ -2,7 +2,7 @@
 name: postagent-print-and-mail
 description: Print and physically mail documents and postcards to US postal addresses via the PostAgent API, send certified/registered mail with proof of delivery, verify postal addresses for deliverability, and (KYC-verified senders only) run bulk mail campaigns. Use when the user wants to send real, physical mail — a letter, notice, invoice, or postcard — to a US recipient, or to check whether a postal address is deliverable. Each send is paid per-call in USDC on Base using the x402 protocol, so it spends real money and is irreversible once submitted.
 license: MIT
-version: 0.2.0
+version: 0.2.1
 metadata:
   homepage: https://postagent-api.interpretai.tech
   tags: [print-and-mail, x402, mcp, usdc, lob, postal-mail]
