@@ -2,7 +2,7 @@
 
 An installable [agent skill](https://skills.sh) that lets your AI coding agent
 **print and physically mail** a document (PDF, HTML, Markdown, text, DOCX, or
-image) to a **US postal address** via the [PostAgent](https://postagent-api.interpretai.tech)
+image) to a **US postal address** via the [PostAgent](https://api.postagent.sh)
 API. Each send is paid per-call in **USDC on Base** using the
 [x402](https://www.x402.org/) payment protocol, then printed and delivered via
 [Lob](https://www.lob.com/).
@@ -45,7 +45,7 @@ npx skills add interpretai-tech/agent-tools --skill postagent-print-and-mail -y
 4. **Track** (free) — poll job status and USPS tracking.
 
 Works in any agent via the **REST API** (plain HTTP, no setup) — and optionally
-via the **PostAgent MCP server** (`https://postagent-api.interpretai.tech/mcp`)
+via the **PostAgent MCP server** (`https://api.postagent.sh/mcp`)
 when it's configured. See [`SKILL.md`](./SKILL.md) for the full instructions the
 agent follows.
 

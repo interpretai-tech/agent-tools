@@ -2,9 +2,9 @@
 name: postagent-print-and-mail
 description: Print and physically mail documents and postcards to US postal addresses via the PostAgent API, send certified/registered mail with proof of delivery, verify postal addresses for deliverability, and (KYC-verified senders only) run bulk mail campaigns. Use when the user wants to send real, physical mail — a letter, notice, invoice, or postcard — to a US recipient, or to check whether a postal address is deliverable. Each send is paid per-call in USDC on Base using the x402 protocol, so it spends real money and is irreversible once submitted.
 license: MIT
-version: 0.2.1
+version: 0.3.0
 metadata:
-  homepage: https://postagent-api.interpretai.tech
+  homepage: https://api.postagent.sh
   tags: [print-and-mail, x402, mcp, usdc, lob, postal-mail]
 ---
 
@@ -28,8 +28,8 @@ Products:
   campaign pipeline. **KYC-walled: unavailable until identity verification
   launches** (see [Bulk campaigns](#bulk-campaigns-kyc-required)).
 
-- **Service base URL:** `https://postagent-api.interpretai.tech`
-- **MCP endpoint:** `https://postagent-api.interpretai.tech/mcp`
+- **Service base URL:** `https://api.postagent.sh`
+- **MCP endpoint:** `https://api.postagent.sh/mcp`
 
 ## When to use this skill
 
@@ -81,7 +81,7 @@ A document is either a **finished letter** (the stored PDF is mailed as-is) or a
 REST — finished letter from inline Markdown:
 
 ```bash
-curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+curl -sX POST https://api.postagent.sh/v1/documents \
   -H "content-type: application/json" \
   -d '{ "format": "markdown", "content": "# Notice\n\nPlease review the attached terms.", "template": false }'
 ```
@@ -89,7 +89,7 @@ curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
 REST — finished letter from an existing PDF (base64 or URL):
 
 ```bash
-curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+curl -sX POST https://api.postagent.sh/v1/documents \
   -H "content-type: application/json" \
   -d '{ "format": "pdf", "url": "https://example.com/letter.pdf", "template": false }'
 ```
@@ -97,7 +97,7 @@ curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
 REST — reusable template (must be text-based and contain at least one `{{field}}`):
 
 ```bash
-curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+curl -sX POST https://api.postagent.sh/v1/documents \
   -H "content-type: application/json" \
   -d '{ "format": "html", "content": "<p>Dear {{name}}, your balance is {{amount}}.</p>", "template": true }'
 ```
@@ -120,7 +120,7 @@ Easiest way to mail a standalone picture — pass a `url` and the **server**
 fetches it (no base64 needed):
 
 ```bash
-curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+curl -sX POST https://api.postagent.sh/v1/documents \
   -H "content-type: application/json" \
   -d '{ "format": "image", "url": "https://example.com/photo.png", "template": false }'
 ```
@@ -138,7 +138,7 @@ cat > body.json <<JSON
   "content": "<h1>Hello</h1><img src=\"$IMG\" style=\"max-width:400px\" />" }
 JSON
 # 3. POST the file (note --data-binary @file, not -d).
-curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+curl -sX POST https://api.postagent.sh/v1/documents \
   -H "content-type: application/json" --data-binary @body.json
 ```
 
@@ -152,7 +152,7 @@ curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
 Verifies both addresses and locks a USDC price for 15 minutes.
 
 ```bash
-curl -sX POST https://postagent-api.interpretai.tech/v1/quotes \
+curl -sX POST https://api.postagent.sh/v1/quotes \
   -H "content-type: application/json" \
   -d '{
     "documentId": "doc_XXX",
@@ -210,7 +210,7 @@ header verifies, prints, and settles.
 Easiest path — pay in-band with any compliant x402 wallet (e.g. Coinbase's `awal`):
 
 ```bash
-npx awal@latest x402 pay https://postagent-api.interpretai.tech/v1/quotes/qt_XXX/pay --max-amount 200000
+npx awal@latest x402 pay https://api.postagent.sh/v1/quotes/qt_XXX/pay --max-amount 200000
 ```
 
 (`--max-amount` is in atomic USDC; set it to the quote's `amountAtomic` or higher.)
@@ -263,7 +263,7 @@ checkout — set one up:**
 ### 4. Track the job (free)
 
 ```bash
-curl -s https://postagent-api.interpretai.tech/v1/jobs/job_XXX
+curl -s https://api.postagent.sh/v1/jobs/job_XXX
 ```
 
 Returns normalized `status`, `providerLetterId`, `tracking` (incl. `proofUrl`
@@ -280,13 +280,13 @@ bleed each edge). Lob prints the recipient address block over part of the
 
 ```bash
 # 1. Upload front and back separately with usage: "postcard"
-curl -sX POST https://postagent-api.interpretai.tech/v1/documents \
+curl -sX POST https://api.postagent.sh/v1/documents \
   -H "content-type: application/json" \
   -d '{ "usage": "postcard", "format": "image", "url": "https://example.com/front.png" }'
 # → { "id": "doc_FRONT", "kind": "postcard_art", ... }   (repeat for the back)
 
 # 2. Quote with product: "postcard"
-curl -sX POST https://postagent-api.interpretai.tech/v1/quotes \
+curl -sX POST https://api.postagent.sh/v1/quotes \
   -H "content-type: application/json" \
   -d '{
     "product": "postcard",
@@ -318,7 +318,7 @@ the `402` challenge, and the same `POST` retried with a payment header returns
 the result synchronously.
 
 ```bash
-npx awal@latest x402 pay https://postagent-api.interpretai.tech/v1/verify \
+npx awal@latest x402 pay https://api.postagent.sh/v1/verify \
   --max-amount 20000 \
   -X POST -d '{ "address": { "line1": "500 Market St", "city": "San Francisco", "state": "CA", "zip": "94105" } }'
 # → { "deliverable": true, "deliverability": "deliverable", "normalized": { ... } }
@@ -397,7 +397,7 @@ top of the letter options (no `certified` alias; use `extraService`).
 - Quotes/jobs are immutable once created; never retry a settled payment.
 - If calls fail in a confusing way (connection errors, unexpected `5xx`),
   sanity-check connectivity and your base URL with
-  `curl https://postagent-api.interpretai.tech/health` — a healthy service
+  `curl https://api.postagent.sh/health` — a healthy service
   returns `{"status":"ok","service":"PostAgent"}`. This is optional and only for
   troubleshooting; do not gate the workflow on it.
 
@@ -412,7 +412,7 @@ and a skill cannot register the MCP server for you. Add it to your client config
 {
   "mcpServers": {
     "PostAgent": {
-      "url": "https://postagent-api.interpretai.tech/mcp"
+      "url": "https://api.postagent.sh/mcp"
     }
   }
 }
@@ -447,6 +447,6 @@ with examples + step-by-step setup for a payer that has no wallet/token yet).
 
 ## Reference
 
-- Terms / Privacy: `GET https://postagent-api.interpretai.tech/v1/terms`
+- Terms / Privacy: `GET https://api.postagent.sh/v1/terms`
 - x402 protocol: https://www.x402.org/
-- MCP server (optional): `https://postagent-api.interpretai.tech/mcp`
+- MCP server (optional): `https://api.postagent.sh/mcp`
