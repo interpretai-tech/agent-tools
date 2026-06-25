@@ -4,8 +4,8 @@ An installable [agent skill](https://skills.sh) that lets your AI coding agent
 **print and physically mail** a document (PDF, HTML, Markdown, text, DOCX, or
 image) to a **US postal address** via the [PostAgent](https://api.postagent.sh)
 API. Each send is paid per-call in **USDC on Base** using the
-[x402](https://www.x402.org/) payment protocol, then printed and delivered via
-[Lob](https://www.lob.com/).
+[x402](https://www.x402.org/) payment protocol, then handled by PostAgent's
+print-and-mail workflow.
 
 > Sending mail spends real money and is **irreversible** once submitted. The
 > skill always quotes first and requires explicit user confirmation before
@@ -40,7 +40,7 @@ npx skills add interpretai-tech/agent-tools --skill postagent-print-and-mail -y
 ## What it does
 
 1. **Upload** a document (free) — finished letter or `{{field}}` mail-merge template.
-2. **Quote** (free) — verifies US sender/recipient addresses and locks a USDC price for 15 minutes.
+2. **Quote** (free) — verifies sender/recipient addresses and locks an inclusive USDC price for 15 minutes.
 3. **Pay** — the agent's x402 wallet pays the quote's `paymentUrl`; PostAgent prints and mails the letter.
 4. **Track** (free) — poll job status and USPS tracking.
 

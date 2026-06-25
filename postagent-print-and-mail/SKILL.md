@@ -2,10 +2,10 @@
 name: postagent-print-and-mail
 description: Print and physically mail documents and postcards to US postal addresses via the PostAgent API, send certified/registered mail with proof of delivery, verify postal addresses for deliverability, and (KYC-verified senders only) run bulk mail campaigns. Use when the user wants to send real, physical mail — a letter, notice, invoice, or postcard — to a US recipient, or to check whether a postal address is deliverable. Each send is paid per-call in USDC on Base using the x402 protocol, so it spends real money and is irreversible once submitted.
 license: MIT
-version: 0.3.0
+version: 0.4.0
 metadata:
   homepage: https://api.postagent.sh
-  tags: [print-and-mail, x402, mcp, usdc, lob, postal-mail]
+  tags: [print-and-mail, x402, mcp, usdc, postal-mail, fulfillment]
 ---
 
 # PostAgent — Print & Mail
@@ -13,8 +13,8 @@ metadata:
 PostAgent turns a digital document into **physical mail** that is printed and
 delivered via USPS. You upload a document, lock a price quote, and pay per send
 with the [x402](https://www.x402.org/) payment protocol (USDC on Base mainnet).
-PostAgent then hands the job to [Lob](https://www.lob.com/) for printing and
-USPS delivery.
+PostAgent handles printing, mailing, tracking, carrier data, proofs, and job
+IDs through one stable customer workflow.
 
 Products:
 
@@ -47,8 +47,9 @@ is supported **only** for 4x6 postcards; all letters are US-to-US.
 
 - **Real money + irreversible.** Submitting a paid job charges USDC and prints &
   mails a physical piece. It cannot be undone. **Always** show the user the
-  recipient, sender, page count, and price, and get **explicit confirmation**
-  before paying.
+  recipient, sender, page count, selected fulfillment options, selected-route
+  `design` constraints, any `fulfillment.warnings`, and price, and get
+  **explicit confirmation** before paying.
 - **US senders + US recipients** for letters. State must be a 2-letter code
   (e.g. `CA`); ZIP must be 5-digit or ZIP+4. Exception: a **4x6 postcard** may
   go to an international recipient (set `to.country` to the 2-letter ISO code);
@@ -142,10 +143,11 @@ curl -sX POST https://api.postagent.sh/v1/documents \
   -H "content-type: application/json" --data-binary @body.json
 ```
 
-> **Address zone:** PostAgent automatically reserves the top ~3 inches of page 1
-> for the recipient address block, so you do **not** need to leave the top blank.
-> This can make the stored/printed page count one greater than your source
-> document (e.g. a 1-page PDF becomes 2 pages), which is reflected in the price.
+> **Address zone:** PostAgent protects the first-page recipient address area
+> during upload/rendering, but the exact production markings are selected-route
+> details. After quoting, read the response's `design` block and preview before
+> paying. PDF/image uploads can gain a blank address page, so the stored/printed
+> page count can be one greater than the source document.
 
 ### 2. Get a price quote (free)
 
@@ -158,16 +160,25 @@ curl -sX POST https://api.postagent.sh/v1/quotes \
     "documentId": "doc_XXX",
     "from": { "name": "Sender Name", "line1": "123 Main St", "city": "San Francisco", "state": "CA", "zip": "94105" },
     "to":   { "name": "Recipient Name", "line1": "500 Market St", "city": "San Francisco", "state": "CA", "zip": "94105" },
-    "options": { "color": false, "doubleSided": true, "mailClass": "usps_first_class" }
+    "options": { "color": false, "doubleSided": true, "serviceLevel": "standard" }
   }'
 ```
 
 Need **proof of mailing/delivery**? Add `"extraService"` to `options`:
 `"certified"` (USPS Certified Mail), `"certified_return_receipt"` (certified +
 electronic return receipt — proof of delivery), or `"registered"` (maximum
-chain-of-custody for valuables). All three require `usps_first_class` and add a
-surcharge that appears in the quoted price. (`"certified": true` still works as
-a legacy alias for `"extraService": "certified"`.)
+chain-of-custody for valuables). They are best paired with the `standard`
+service level. (`"mailClass"` and `"certified": true` still work as legacy
+aliases.)
+
+`serviceLevel` and `extraService` are **soft preferences**: the quote response
+includes a `fulfillment` block with `requested`, `selected`, and a `warnings`
+array. If no available provider supports the requested level/extra for this
+destination, the router downgrades or drops it and surfaces a warning
+(`service_level_downgraded` or `extra_service_unavailable`). **Always** read
+`fulfillment.warnings` before paying and disclose every entry to the user
+verbatim — silently mailing without requested certification or at a slower
+service level is a contract failure.
 
 For a **template** document, also pass `mergeVariables` with a value for every
 field in the document's `mergeFields`, e.g.
@@ -183,14 +194,21 @@ The response includes:
   Shared Payment Token, when enabled), and `stripe_checkout` (a hosted credit-
   card page for a human payer, the last resort).
 - `paymentUrl` — `…/v1/quotes/{quoteId}/pay`, the canonical x402-payable URL.
+- `fulfillment` — provider-neutral requested vs. selected fulfillment options:
+  `{ requested, selected, warnings }`. If `warnings` is non-empty, disclose each
+  warning to the user before payment.
+- `design` — provider-neutral layout rules for the selected delivery method:
+  page/artwork size, bleed/safe-zone guidance, and address/no-ink zones. Use it
+  to verify or revise the content before payment.
 - `previewUrl` — `GET` it for a signed PDF preview of the final piece (address
   block + reserved zones drawn on top). Share this with the user when available.
   Programmatic clients (Accept: application/json) get JSON with the signed `url`;
   opening it in a browser redirects straight to the PDF.
 - `expiresAt` — pay before this or re-quote.
 
-**Show the user the recipient, sender, options, page count, price, and (if
-available) the preview, then wait for explicit confirmation.**
+**Show the user the recipient, sender, selected options, page count, price,
+`design`, `fulfillment.warnings`, and (if available) the preview, then wait for
+explicit confirmation.**
 
 ### 3. Pay the quote → create the letter (charges money, irreversible)
 
@@ -220,7 +238,8 @@ npx awal@latest x402 pay https://api.postagent.sh/v1/quotes/qt_XXX/pay --max-amo
 > [Optional: MCP server](#optional-mcp-server).
 
 A successful payment returns a **job** (`job_...`) with `status`,
-`providerLetterId`, settlement `payment.transaction`, and `tracking`.
+settlement `payment.transaction`, and normalized `tracking`/proof data when
+available.
 
 > Optionally append `?webhookUrl=https://you.example.com/hook` to the pay URL to
 > receive job status updates.
@@ -243,7 +262,8 @@ checkout — set one up:**
   in-band with any compliant x402 wallet:
   `npx awal@latest x402 pay <paymentUrl> --max-amount <amountAtomic>`.
   *No wallet?* Install one (`npx awal@latest`), connect it, and fund it with USDC
-  on Base mainnet (at least the quote's `price.usdcAtomic` plus gas), then pay.
+  on Base mainnet (at least the quote's `price.usdcAtomic` plus gas), then pay
+  only after the user confirms the selected fulfillment options and any warnings.
 - **MPP — fiat card/wallet via a Stripe Shared Payment Token (autonomous).** Mint
   an SPT scoped to the seller, then `POST /v1/quotes/{quoteId}/pay/mpp` with
   `{ "sharedPaymentToken": "<SPT>" }` (or MCP `pay_mail_with_shared_payment_token`).
@@ -252,10 +272,13 @@ checkout — set one up:**
   `npx @stripe/link-cli auth login` → `payment-methods list` →
   `spend-request create --payment-method-id <pm> --amount <cents> --credential-type shared_payment_token --network-id <stripeProfileId> --request-approval`,
   then forward the returned token as `sharedPaymentToken` (a bearer secret —
-  pass it straight to the call, never display it). (US-only; 0.50 USD card minimum.)
+  pass it straight to the call, never display it). (US-only; 0.50 USD card
+  minimum.) Use it only after the user confirms the selected fulfillment options
+  and any warnings.
 - **Hosted Checkout — human with a card (last resort).** `POST /v1/quotes/{quoteId}/checkout`
   (or MCP `create_card_checkout`) returns a `checkoutUrl` for a human to pay in a
-  browser; the letter is created once payment completes (poll job status).
+  browser; the letter is created once payment completes (poll job status). Share
+  any fulfillment warnings with the payer before sending them to checkout.
 
 > MCP clients can read the `postagent://payment-methods` resource for this same
 > guidance, with per-rail examples and setup steps, in structured form.
@@ -266,8 +289,8 @@ checkout — set one up:**
 curl -s https://api.postagent.sh/v1/jobs/job_XXX
 ```
 
-Returns normalized `status`, `providerLetterId`, `tracking` (incl. `proofUrl`
-and thumbnails once Lob renders them), and `failureReason` if any.
+Returns normalized `status`, `tracking` (incl. `proofUrl` and thumbnails once
+available), and `failureReason` if any.
 
 ## Postcards
 
@@ -275,8 +298,8 @@ Postcards are built from **two artwork files** (front + back), each a
 single-page PDF, PNG, or JPEG stored **verbatim** — no page normalization, no
 reserved address zone. You are responsible for trim size + bleed: 4x6 needs
 4.25"x6.25" artwork, 6x9 needs 6.25"x9.25", 6x11 needs 6.25"x11.25" (0.125"
-bleed each edge). Lob prints the recipient address block over part of the
-**back**, so keep that area clear. Postcards always print in full color.
+bleed each edge). The print partner prints the recipient address block over part
+of the **back**, so keep that area clear. Postcards always print in full color.
 
 ```bash
 # 1. Upload front and back separately with usage: "postcard"
@@ -294,26 +317,28 @@ curl -sX POST https://api.postagent.sh/v1/quotes \
     "backDocumentId": "doc_BACK",
     "from": { "name": "Sender", "line1": "123 Main St", "city": "San Francisco", "state": "CA", "zip": "94105" },
     "to":   { "name": "Recipient", "line1": "500 Market St", "city": "San Francisco", "state": "CA", "zip": "94105" },
-    "options": { "size": "4x6", "mailClass": "usps_first_class" }
+    "options": { "size": "4x6", "serviceLevel": "standard" }
   }'
 ```
 
 Pay the returned `paymentUrl` exactly like a letter (step 3 above). Sizes:
-`4x6` (default), `6x9`, `6x11`. **International:** only `4x6`, only
-`usps_first_class` — give `to.country` the 2-letter ISO code and use the
-looser address shape (free-form `state`, postal code in `zip`). The quote's
-`previewUrl` serves a **two-page composite PDF** (front, then back with Lob's
-printed address block drawn in place so you can see exactly what it covers):
+`4x6` (default), `6x9`, `6x11`. `serviceLevel` accepts `economy`, `standard`,
+or `express`, but it is a soft preference: inspect the quote's `fulfillment`
+block to see what was actually selected. **International:** only `4x6` can ship
+cross-border — give `to.country` the 2-letter ISO code and use the looser
+address shape (free-form `state`, postal code in `zip`). The quote's
+`previewUrl` serves a **two-page composite PDF** (front, then back with the
+selected route's address block drawn in place so you can see exactly what it covers):
 opening it in a browser redirects straight to the PDF, while JSON clients get
-`{ url, front, back }` — the composite plus the raw artwork URLs. Share `url`
-with the user before paying. Lob's rendered proof appears on the job's
-`tracking` after payment.
+`{ url, front, back, design }` — the composite, raw artwork URLs, and selected
+layout constraints. Share `url` and review `design` with the user before paying.
+Rendered proof/tracking appears on the job after payment when available.
 
 ## Address verification (paid, ~2¢)
 
 Standalone deliverability check — no mail is sent. US addresses get
-CASS-standardized results (ZIP+4); other countries run international
-verification. The endpoint is a stable x402 resource: unpaid requests return
+CASS-standardized results (ZIP+4) where the selected verification provider
+supports it; other countries run international verification. The endpoint is a stable x402 resource: unpaid requests return
 the `402` challenge, and the same `POST` retried with a payment header returns
 the result synchronously.
 
@@ -332,9 +357,8 @@ this — quotes already verify both addresses for free.
 
 `product: "campaign"` on `POST /v1/quotes` quotes ONE bulk send to up to 500
 recipients: a single template (per-recipient `{{merge_variables}}`) or static
-PDF, fulfilled through Lob's campaign pipeline (campaign + creative + audience
-upload). Price = per-letter unit price x recipient count. Payment is **x402
-only**, and the request must name the paying wallet (`payerWallet`).
+PDF, fulfilled through PostAgent's campaign workflow. Payment is
+**x402 only**, and the request must name the paying wallet (`payerWallet`).
 
 > **KYC WALL — currently unusable.** Campaigns require the paying wallet to be
 > identity-verified with PostAgent. KYC onboarding is **not yet available**, so
@@ -352,18 +376,16 @@ refunded (processed manually, not automatic). Set `options.useType` honestly
 
 ## Pricing
 
-Deterministic and transparent:
+Quotes are inclusive:
 
 ```
-letter   total = ceil((base + per_page*pages + color? + mail_class? + extra_service?) * margin)
-postcard total = ceil((size_base + mail_class?) * margin)        # always full color
-campaign total = letter_unit_price * recipient_count
-verify   total = flat fee (~2¢)
+fulfillment total = locked inclusive price for the selected service
+verify      total = flat fee (~2¢)
 ```
 
-The quote returns the total in USD and as atomic USDC (6 decimals); the atomic
-amount is the exact x402 charge. Color, first-class, and each extra service
-(certified, certified + return receipt, registered) add a surcharge.
+The quote returns only the inclusive customer-facing total in USD and atomic
+USDC (6 decimals); the atomic amount is the exact x402 charge. Private
+fulfillment details are not exposed.
 
 ## Options reference
 
@@ -373,7 +395,8 @@ Letters (`options` on a default/letter quote):
 | ------ | ------ | ------- |
 | `color` | `true` / `false` | `false` |
 | `doubleSided` | `true` / `false` | `true` |
-| `mailClass` | `usps_first_class` / `usps_standard` | `usps_first_class` |
+| `serviceLevel` | `economy` / `standard` / `express` | `standard` |
+| `mailClass` | `usps_first_class` / `usps_standard` (legacy alias) | `usps_first_class` |
 | `extraService` | `certified` / `certified_return_receipt` / `registered` | none |
 | `certified` | `true` / `false` (legacy alias for `extraService: certified`) | `false` |
 
@@ -382,10 +405,22 @@ Postcards (`options` with `product: "postcard"`):
 | Option | Values | Default |
 | ------ | ------ | ------- |
 | `size` | `4x6` / `6x9` / `6x11` | `4x6` |
-| `mailClass` | `usps_first_class` / `usps_standard` | `usps_first_class` |
+| `serviceLevel` | `economy` / `standard` / `express` | `standard` |
+| `mailClass` | `usps_first_class` / `usps_standard` (legacy alias) | `usps_first_class` |
 
-Campaigns add `useType` (`marketing` / `operational`, default `marketing`) on
-top of the letter options (no `certified` alias; use `extraService`).
+Campaigns (`options` with `product: "campaign"`):
+
+| Option | Values | Default |
+| ------ | ------ | ------- |
+| `color` | `true` / `false` | `false` |
+| `doubleSided` | `true` / `false` | `true` |
+| `serviceLevel` | `economy` / `standard` / `express` | `standard` |
+| `mailClass` | `usps_first_class` / `usps_standard` (legacy alias) | `usps_first_class` |
+| `extraService` | `certified` / `certified_return_receipt` / `registered` | none |
+| `useType` | `marketing` / `operational` | `marketing` |
+
+Campaigns do **not** accept the legacy `certified: true` alias; use
+`extraService` directly.
 
 ## Error handling
 
@@ -440,7 +475,9 @@ The tools map 1:1 to the workflow steps:
 `paymentUrl` in-band; it requires both a signed x402 `paymentSignature`
 (`<paymentSignature>` — a bearer secret: forward it only as this call's field,
 never print or log it) and `userConfirmed: true`. Set `userConfirmed: true` only
-after the human explicitly approved the recipient, sender, content, and price. Read-only resources are also
+after the human explicitly approved the recipient, sender, content, selected
+fulfillment options, selected-route `design` constraints, any
+`fulfillment.warnings`, and price. Read-only resources are also
 exposed: `postagent://terms`, `postagent://privacy`, `postagent://formats`,
 `postagent://pricing`, and `postagent://payment-methods` (every supported rail
 with examples + step-by-step setup for a payer that has no wallet/token yet).
