@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "tech.interpretai/PostAgent",
   "description": "Print & mail PDF/HTML/Markdown/text/DOCX/images to US addresses; pay per call in x402 USDC on Base.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "websiteUrl": "https://api.postagent.sh",
   "repository": {
     "url": "https://github.com/interpretai-tech/agent-tools",

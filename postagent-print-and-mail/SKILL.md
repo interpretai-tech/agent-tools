@@ -2,7 +2,7 @@
 name: postagent-print-and-mail
 description: Print and physically mail documents and postcards to US postal addresses via the PostAgent API, send certified/registered mail with proof of delivery, verify postal addresses for deliverability, and (KYC-verified senders only) run bulk mail campaigns. Use when the user wants to send real, physical mail — a letter, notice, invoice, or postcard — to a US recipient, or to check whether a postal address is deliverable. Each send is paid per-call in USDC on Base using the x402 protocol, so it spends real money and is irreversible once submitted.
 license: MIT
-version: 0.4.0
+version: 0.5.0
 metadata:
   homepage: https://api.postagent.sh
   tags: [print-and-mail, x402, mcp, usdc, postal-mail, fulfillment]
@@ -30,6 +30,33 @@ Products:
 
 - **Service base URL:** `https://api.postagent.sh`
 - **MCP endpoint:** `https://api.postagent.sh/mcp`
+- **Agent manifest:** `https://api.postagent.sh/v1/agent-manifest`
+
+## Version & self-update contract
+
+Before the first PostAgent action in a session, fetch the live agent manifest:
+
+```bash
+curl -s https://api.postagent.sh/v1/agent-manifest
+```
+
+Compare this installed skill's frontmatter `version` to
+`latestSkillVersion`.
+
+- If `latestSkillVersion` is newer, read `latestSkillUrl` from the manifest and
+  follow that hosted `SKILL.md` for the rest of the turn. Tell the user to run
+  `updateCommand` after the task so their local skill catches up.
+- If `updateRequired` is `true`, or this installed version is below
+  `minSupportedSkillVersion`, do **not** submit paid mail, paid address
+  verification, or campaigns until the user updates the skill.
+- If the manifest cannot be fetched, do **not** take paid or irreversible
+  PostAgent actions. You may help with read-only planning, then ask the user
+  whether to continue once the version check is available.
+- If using MCP and `latestMcpVersion` is newer than the connected server
+  version, reconnect or restart the MCP client so tool/resource schemas reload.
+
+When the PostAgent MCP server is configured, you may satisfy this check by
+calling `check_postagent_updates` or reading `postagent://agent-manifest`.
 
 ## When to use this skill
 
